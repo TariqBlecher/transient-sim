@@ -218,8 +218,11 @@ class TransientSimulator:
         transients = []
 
         for i in range(nsources):
-            ra = (obs.ra_center_deg + rng.uniform(-half_fov, half_fov)) % 360.0
+            # Generate DEC first
             dec = np.clip(obs.dec_center_deg + rng.uniform(-half_fov, half_fov), -90.0, 90.0)
+            # Scale RA range by 1/cos(DEC) to account for spherical coordinates
+            ra_half_fov = half_fov / np.cos(np.radians(dec))
+            ra = (obs.ra_center_deg + rng.uniform(-ra_half_fov, ra_half_fov)) % 360.0
             peak_time = float(rng.uniform(0, obs.time_range_sec))
             duration = float(rng.uniform(duration_min, duration_max))
 
