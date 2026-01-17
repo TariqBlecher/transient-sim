@@ -368,11 +368,12 @@ if __name__ == '__main__':
     parser.add_argument('--nsources', type=int, default=10, help='Number of transients')
     parser.add_argument('--seed', type=int, help='Random seed')
     parser.add_argument('--output', '-o', required=True, help='Output YAML path')
+    parser.add_argument('--input-transients', '-i', help='Input transients YAML (skip generation, use for HCI)')
     parser.add_argument('--manifest', '-m', help='Output manifest ECSV path')
     parser.add_argument('--fov', type=float, default=2.0, help='Field of view (degrees)')
     parser.add_argument('--flux-min', type=float, default=0.1, help='Min peak flux (Jy)')
     parser.add_argument('--flux-max', type=float, default=5.0, help='Max peak flux (Jy)')
-    parser.add_argument('--duration-max', type=float, default=180.0, help='Max duration (seconds)')
+    parser.add_argument('--duration-max', type=float, default=10.0, help='Max duration (seconds)')
     # HCI options
     parser.add_argument('--run-hci', action='store_true', help='Run HCI injection after generating transients')
     parser.add_argument('--hci-output', help='Output directory for HCI zarr cube')
@@ -396,23 +397,34 @@ if __name__ == '__main__':
         duration_max_sec=args.duration_max
     )
     sim = TransientSimulator.from_ms(args.ms, cfg)
-    sim.generate(nsources=args.nsources, seed=args.seed)
-    sim.save(args.output)
-    print(sim.summary())
+
+    # If input transients provided, skip generation and use existing file for HCI
+    if args.input_transients:
+        input_yaml = Path(args.input_transients)
+        if not input_yaml.exists():
+            print(f"Error: Input transients file not found: {input_yaml}")
+            exit(1)
+        print(f"Using existing transients from {input_yaml}")
+        transient_yaml_path = input_yaml
+    else:
+        sim.generate(nsources=args.nsources, seed=args.seed)
+        sim.save(args.output)
+        print(sim.summary())
+        transient_yaml_path = Path(args.output)
 
     if args.run_hci:
         if not args.hci_output:
-            args.hci_output = str(Path(args.output).with_suffix('.zarr'))
+            args.hci_output = str(transient_yaml_path.with_suffix('.zarr'))
         hci_cfg = HCIConfig(nx=args.nx, ny=args.ny, cell_size=args.cell_size,
                             fov=args.fov, nworkers=args.nworkers)
         print(f"Running HCI injection -> {args.hci_output}")
-        result = sim.run_hci(args.hci_output, args.output, hci_cfg, args.venv)
+        result = sim.run_hci(args.hci_output, str(transient_yaml_path), hci_cfg, args.venv)
         if result['success']:
             print(f"HCI complete in {result['elapsed_sec']:.1f}s")
         else:
             print(f"HCI failed: {result.get('stderr', 'unknown error')}")
 
-    if args.manifest:
+    if args.manifest and sim.transients:
         sim.save_manifest(args.manifest)
         print(f"Manifest saved to {args.manifest}")
         # Auto-generate region file
