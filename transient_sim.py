@@ -11,9 +11,8 @@ from typing import Optional, List, Union, Dict, Any
 from datetime import datetime
 
 from manifest_to_regions import manifest_to_regions
-from flux_utils import scale_peak_flux_for_snr, compute_expected_flux
+from flux_utils import compute_expected_flux
 from obs_params import ObservationParams
-from cube_utils import extract_rms_from_cube
 from transient import Transient, TransientConfig, save_transients_yaml
 from hci_runner import HCIConfig, run_hci
 from zarr_to_fits_simple import zarr_to_fits
@@ -42,7 +41,7 @@ class TransientSimulator:
         obs = self.obs
 
         half_fov = cfg.fov_deg / 2.0
-        duration_min = obs.integration_time_sec / 4
+        duration_min = obs.integration_time_sec
         duration_max = min(cfg.duration_max_sec, obs.time_range_sec / 4)
         transients = []
 
@@ -70,7 +69,9 @@ class TransientSimulator:
 
             shape = str(rng.choice(cfg.shapes))
             spectral_index = float(rng.uniform(*cfg.spectral_index_range))
-            peak_flux = float(rng.uniform(*cfg.flux_range_jy))
+            # Direct SNR-based flux: peak_flux = target_snr * rms
+            target_snr = float(rng.uniform(*cfg.snr_range))
+            peak_flux = target_snr * cfg.rms_jy
 
             # Compute expected cube flux (assuming peak_time centered in bin)
             bin_start = peak_time - obs.integration_time_sec / 2
@@ -115,6 +116,8 @@ class TransientSimulator:
             "fov_deg": cfg.fov_deg,
             "ra_center_deg": obs.ra_center_deg,
             "dec_center_deg": obs.dec_center_deg,
+            "snr_range": list(cfg.snr_range),
+            "rms_jy": cfg.rms_jy,
         }
         return transients
 
@@ -137,76 +140,12 @@ class TransientSimulator:
             s: sum(1 for t in self.transients if t.shape == s)
             for s in set(t.shape for t in self.transients)
         }
+        cfg = self.config
         return (
             f"Generated {len(self.transients)} transients | "
-            f"Flux: {min(fluxes):.2f}-{max(fluxes):.2f} Jy | Shapes: {shapes}"
+            f"Flux: {min(fluxes):.4f}-{max(fluxes):.4f} Jy | "
+            f"SNR range: {cfg.snr_range[0]}-{cfg.snr_range[1]} | Shapes: {shapes}"
         )
-
-    def scale_to_snr(
-        self,
-        snr_min: float,
-        snr_max: float,
-        rms: Optional[float] = None,
-        seed: Optional[int] = None,
-    ) -> float:
-        """
-        Scale transient fluxes to ensure sensible, detectable values.
-
-        This is an integral part of transient generation. Without scaling,
-        randomly-generated fluxes from flux_range may produce transients that
-        are either too faint to detect or unrealistically bright. Scaling
-        ensures all transients fall within a target SNR range, making them
-        suitable for testing detection algorithms.
-
-        Args:
-            snr_min: Minimum target SNR
-            snr_max: Maximum target SNR
-            rms: RMS noise level in Jy (required)
-            seed: Random seed for reproducibility
-
-        Returns:
-            RMS value used for scaling
-        """
-        if rms is None:
-            raise ValueError(
-                "RMS must be provided. Generate a baseline cube first if needed."
-            )
-        if not self.transients:
-            raise ValueError("No transients to scale. Call generate() first.")
-
-        rng = np.random.default_rng(seed)
-        obs = self.obs
-        scaled_count = 0
-
-        for t in self.transients:
-            new_peak, expected, was_scaled = scale_peak_flux_for_snr(
-                t.peak_flux_jy,
-                t.peak_time_sec,
-                t.duration_sec,
-                t.shape,
-                obs.integration_time_sec,
-                rms,
-                snr_min,
-                snr_max,
-                rng,
-                spectral_index=t.spectral_index,
-                reference_freq=obs.reference_freq_hz,
-                freq_min=obs.freq_min_hz,
-                freq_max=obs.freq_max_hz,
-            )
-            t.peak_flux_jy = new_peak
-            t.expected_cube_flux_jy = expected
-            if was_scaled:
-                scaled_count += 1
-
-        self.metadata["rms_jy"] = rms
-        self.metadata["snr_range"] = [snr_min, snr_max]
-        self.metadata["scaled_count"] = scaled_count
-
-        print(
-            f"Scaled {scaled_count}/{len(self.transients)} transients to SNR range [{snr_min}, {snr_max}]"
-        )
-        return rms
 
 
 if __name__ == "__main__":
@@ -229,28 +168,9 @@ if __name__ == "__main__":
         "--fov", type=float, default=2.0, help="Field of view (degrees)"
     )
     parser.add_argument(
-        "--flux-min", type=float, default=0.1, help="Min peak flux (Jy)"
-    )
-    parser.add_argument(
-        "--flux-max", type=float, default=5.0, help="Max peak flux (Jy)"
-    )
-    parser.add_argument(
         "--duration-max", type=float, default=10.0, help="Max duration (seconds)"
     )
-    # SNR scaling options
-    parser.add_argument(
-        "--scale-snr",
-        action="store_true",
-        dest="scale_snr",
-        default=True,
-        help="Enable SNR-based flux scaling (default: enabled)",
-    )
-    parser.add_argument(
-        "--no-scale-snr",
-        action="store_false",
-        dest="scale_snr",
-        help="Disable SNR-based flux scaling",
-    )
+    # SNR-based flux generation
     parser.add_argument(
         "--snr-min", type=float, default=5.0, help="Min target SNR (default: 5.0)"
     )
@@ -296,12 +216,10 @@ if __name__ == "__main__":
         )
         args.fov = max_fov_deg
 
-    # SNR scaling enabled by default, can be disabled with --no-scale-snr
-    snr_scaling_enabled = args.scale_snr
-
     cfg = TransientConfig(
         fov_deg=args.fov,
-        flux_range_jy=(args.flux_min, args.flux_max),
+        snr_range=(args.snr_min, args.snr_max),
+        rms_jy=args.rms,
         duration_max_sec=args.duration_max,
     )
     sim = TransientSimulator.from_ms(args.ms, cfg)
@@ -322,48 +240,13 @@ if __name__ == "__main__":
         print(f"Using existing transients from {input_yaml}")
         transient_yaml_path = input_yaml
     else:
+        # Generate transients with direct SNR-based flux
         sim.generate(nsources=args.nsources, seed=args.seed)
         print(sim.summary())
         transient_yaml_path = Path(args.output)
-
-        # SNR Scaling workflow
-        if snr_scaling_enabled:
-            rms = args.rms
-
-            # If no RMS provided, generate baseline cube to measure noise
-            if rms is None:
-                if not args.hci_output:
-                    args.hci_output = str(transient_yaml_path.with_suffix(".zarr"))
-                baseline_dir = Path(args.hci_output).parent / "baseline.zarr"
-                print(f"Generating baseline cube (no transients) -> {baseline_dir}")
-
-                baseline_result = run_hci(
-                    ms_path=sim.obs.ms_path,
-                    output_dir=baseline_dir,
-                    transient_yaml=None,  # No transients for baseline
-                    hci_config=hci_cfg,
-                    venv_path=args.venv,
-                )
-
-                if not baseline_result["success"]:
-                    print(
-                        f"Baseline HCI failed: {baseline_result.get('stderr', 'unknown error')}"
-                    )
-                    exit(1)
-
-                print(
-                    f"Baseline cube complete in {baseline_result['elapsed_sec']:.1f}s"
-                )
-                rms = extract_rms_from_cube(baseline_dir)
-                print(f"Extracted RMS from baseline: {rms:.4f} Jy")
-
-            # Scale transients to target SNR range
-            sim.scale_to_snr(args.snr_min, args.snr_max, rms=rms, seed=args.seed)
-
-        # Save transients (potentially scaled)
         sim.save(args.output)
 
-    # Run HCI with (potentially scaled) transients
+    # Run HCI with transients
     if args.run_hci:
         if not args.hci_output:
             args.hci_output = str(transient_yaml_path.with_suffix(".zarr"))

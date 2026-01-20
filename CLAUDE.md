@@ -6,7 +6,7 @@ A modular framework for generating and verifying synthetic radio transients for 
 
 ```
 sims/
-├── flux_utils.py        # Pure flux computation + SNR scaling (no external deps beyond numpy/scipy)
+├── flux_utils.py        # Pure flux computation (no external deps beyond numpy/scipy)
 ├── obs_params.py        # ObservationParams dataclass + MS extraction (casacore)
 ├── transient.py         # Transient dataclass + YAML I/O
 ├── cube_utils.py        # RMS extraction from zarr cubes (xarray)
@@ -45,7 +45,6 @@ manifest_io.py
 transient_sim.py (MASTER ORCHESTRATOR)
     ├── flux_utils
     ├── obs_params
-    ├── cube_utils
     ├── transient
     ├── hci_runner
     ├── manifest_io
@@ -72,21 +71,21 @@ The cube averages over frequency, so we compute the band-averaged flux correctio
 ### Time Bin Integration
 Each time bin is centered on the timestamp with width = integration time. Expected flux accounts for the temporal profile overlap with the bin.
 
-### SNR Scaling (Ensuring Sensible Fluxes)
-SNR scaling is an **integral part of transient generation**, not a separate post-processing step. Without scaling, randomly-generated fluxes from `flux_range` may produce transients that are either too faint to detect or unrealistically bright compared to the noise level.
+### Flux Generation (SNR-based)
+Transient fluxes are generated directly from SNR parameters:
+```
+peak_flux = uniform(snr_min, snr_max) * rms
+```
 
-**Why this matters:** If you're testing a detection algorithm, you need transients with realistic, detectable fluxes. Scaling ensures all transients fall within a controlled SNR range, making simulations meaningful for algorithm validation.
-
-- **Enabled by default** (`--scale-snr`), disable with `--no-scale-snr`
 - Default SNR range: 5-20 (configurable via `--snr-min`, `--snr-max`)
 - Default RMS: 1.4e-04 Jy (from SM1R00C04_1min baseline, override with `--rms`)
-- Scale `peak_flux` so expected cube flux falls within `[snr_min, snr_max] * rms`
+- This ensures all transients have detectable, realistic fluxes for algorithm validation
 
 ## CLI Usage
 
 ### Recommended Workflow (Integrated)
 
-**Generate transients with SNR scaling (default) and HCI injection:**
+**Generate transients with HCI injection:**
 ```bash
 # Uses default RMS (1.4e-04) and SNR range [5, 20]
 python transient_sim.py --ms /path/to/ms --nsources 50 \
@@ -105,13 +104,6 @@ python transient_sim.py --ms /path/to/ms --nsources 50 \
     -o transients.yaml -m manifest.ecsv
 ```
 
-**Generate transients WITHOUT scaling (use raw flux_range):**
-```bash
-python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --no-scale-snr \
-    -o transients.yaml -m manifest.ecsv
-```
-
 ### Verify Injection
 ```bash
 python verify_transients.py --manifest manifest.ecsv --cube output.zarr --ms /path/to/ms
@@ -122,19 +114,13 @@ python verify_transients.py --manifest manifest.ecsv --cube output.zarr --ms /pa
 ```
 transient_sim.py --ms ... --run-hci [--rms 0.001]
     │
-    ├─ Step 1: Generate initial transients (random fluxes in flux_range)
+    ├─ Step 1: Generate transients (peak_flux = uniform(snr_min, snr_max) * rms)
     │
-    ├─ Step 2: SNR Scaling (DEFAULT ON, disable with --no-scale-snr)
-    │    ├─ If --rms provided → use directly
-    │    └─ Else → run HCI (no transients) → baseline.zarr → extract RMS
+    ├─ Step 2: Save YAML + manifest
     │
-    ├─ Step 3: Scale peak_flux to hit target SNR range [5, 20] by default
+    ├─ Step 3: Run HCI with transients → output.zarr
     │
-    ├─ Step 4: Save scaled YAML + manifest
-    │
-    ├─ Step 5: Run HCI with scaled transients → final.zarr
-    │
-    └─ Step 6: Convert to FITS (DEFAULT ON, disable with --no-fits) → final.fits
+    └─ Step 4: Convert to FITS (DEFAULT ON, disable with --no-fits) → output.fits
 ```
 
 ## Development Notes
@@ -146,7 +132,6 @@ transient_sim.py --ms ... --run-hci [--rms 0.001]
 - `Transient.from_manifest_row()` creates instances from manifest DataFrame rows
 - Lazy imports for heavy dependencies (casacore, xarray) where appropriate
 - `transient_sim.py` is the master orchestrator - prefer using it over separate CLI steps
-- `run_hci()` accepts `transient_yaml=None` to generate baseline cubes without transients
 
 ## pfb hci Notes
 

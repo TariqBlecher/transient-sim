@@ -19,7 +19,8 @@ class TransientConfig:
     shapes: List[str] = field(
         default_factory=lambda: ["gaussian", "exponential", "step"]
     )
-    flux_range_jy: tuple = (0.1, 5.0)
+    snr_range: tuple = (5.0, 20.0)  # Target SNR range for generated transients
+    rms_jy: float = 1.4e-04  # Default RMS from SM1R00C04_1min baseline
     spectral_index_range: tuple = (-2.0, 0.0)
     periodic_fraction: float = 0.0
     period_range_sec: Optional[tuple] = None

@@ -4,8 +4,6 @@ Pure functions for spectral correction and expected flux calculations.
 No dependencies beyond numpy and scipy.
 """
 
-from typing import Optional
-
 import numpy as np
 from scipy import integrate
 
@@ -126,86 +124,3 @@ def compute_expected_flux(
         return integral / bin_width
 
     return 0.0
-
-
-def scale_peak_flux_for_snr(
-    peak_flux: float,
-    peak_time: float,
-    duration: float,
-    shape: str,
-    integration_time: float,
-    rms: float,
-    snr_min: float,
-    snr_max: float,
-    rng: np.random.Generator,
-    spectral_index: float = 0.0,
-    reference_freq: Optional[float] = None,
-    freq_min: Optional[float] = None,
-    freq_max: Optional[float] = None,
-) -> tuple:
-    """
-    Scale peak flux to achieve target SNR range.
-
-    Computes expected cube flux and scales peak_flux if SNR falls
-    outside the target range.
-
-    Args:
-        peak_flux: Current peak flux in Jy
-        peak_time: Time of transient peak in seconds
-        duration: Duration parameter in seconds
-        shape: Transient shape ('gaussian', 'exponential', 'step')
-        integration_time: Integration time of observations in seconds
-        rms: RMS noise level in Jy
-        snr_min: Minimum target SNR
-        snr_max: Maximum target SNR
-        rng: Random number generator
-        spectral_index: Power-law spectral index
-        reference_freq: Reference frequency in Hz
-        freq_min: Minimum frequency in Hz
-        freq_max: Maximum frequency in Hz
-
-    Returns:
-        Tuple of (new_peak_flux, expected_cube_flux, was_scaled)
-    """
-    bin_start = peak_time - integration_time / 2
-    bin_end = peak_time + integration_time / 2
-
-    expected_flux = compute_expected_flux(
-        peak_flux,
-        peak_time,
-        duration,
-        shape,
-        bin_start,
-        bin_end,
-        spectral_index=spectral_index,
-        reference_freq=reference_freq,
-        freq_min=freq_min,
-        freq_max=freq_max,
-    )
-
-    snr = expected_flux / rms
-
-    if snr < snr_min or snr > snr_max:
-        target_snr = float(rng.uniform(snr_min, snr_max))
-        target_expected = target_snr * rms
-
-        # Correction factor: expected_flux per unit peak_flux
-        correction = compute_expected_flux(
-            1.0,
-            peak_time,
-            duration,
-            shape,
-            bin_start,
-            bin_end,
-            spectral_index=spectral_index,
-            reference_freq=reference_freq,
-            freq_min=freq_min,
-            freq_max=freq_max,
-        )
-
-        new_peak_flux = (
-            target_expected / correction if correction > 0 else target_expected
-        )
-        return float(new_peak_flux), float(target_expected), True
-
-    return float(peak_flux), float(expected_flux), False
