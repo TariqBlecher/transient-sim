@@ -87,40 +87,36 @@ peak_flux = uniform(snr_min, snr_max) * rms
 
 **Generate transients with HCI injection:**
 ```bash
-# Uses default RMS (1.4e-04) and SNR range [5, 20]
-python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --run-hci --hci-output injected.zarr \
-    -o transients.yaml -m manifest.ecsv
+# Simplified: -o is the only required output argument
+# Creates: run1.yaml, run1.ecsv, run1.zarr, run1.fits, run1.reg
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci
 
 # Custom SNR range and RMS
 python transient_sim.py --ms /path/to/ms --nsources 50 \
     --snr-min 10 --snr-max 50 --rms 0.001 \
-    --run-hci --hci-output injected.zarr \
-    -o transients.yaml -m manifest.ecsv
+    -o run1 --run-hci
 
 # Skip FITS conversion (zarr only)
-python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --run-hci --hci-output injected.zarr --no-fits \
-    -o transients.yaml -m manifest.ecsv
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci --no-fits
 ```
 
 ### Verify Injection
 ```bash
-python verify_transients.py --manifest manifest.ecsv --cube output.zarr --ms /path/to/ms
+python verify_transients.py --manifest run1.ecsv --cube run1.zarr --ms /path/to/ms
 ```
 
 ## Pipeline Flow
 
 ```
-transient_sim.py --ms ... --run-hci [--rms 0.001]
+transient_sim.py --ms ... -o {base} --run-hci
     │
     ├─ Step 1: Generate transients (peak_flux = uniform(snr_min, snr_max) * rms)
     │
-    ├─ Step 2: Save YAML + manifest
+    ├─ Step 2: Save {base}.yaml + {base}.ecsv + {base}.reg
     │
-    ├─ Step 3: Run HCI with transients → output.zarr
+    ├─ Step 3: Run HCI with transients → {base}.zarr
     │
-    └─ Step 4: Convert to FITS (DEFAULT ON, disable with --no-fits) → output.fits
+    └─ Step 4: Convert to FITS (DEFAULT ON, disable with --no-fits) → {base}.fits
 ```
 
 ## Development Notes

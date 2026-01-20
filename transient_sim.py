@@ -28,9 +28,18 @@ class TransientSimulator:
         self.metadata: Dict[str, Any] = {}
 
     @classmethod
-    def from_ms(cls, ms_path: str, config: TransientConfig) -> "TransientSimulator":
-        """Create simulator with parameters extracted from a Measurement Set."""
-        return cls(ObservationParams.from_ms(ms_path), config)
+    def from_ms(
+        cls, ms_path: str, config: TransientConfig, extract_scans: bool = True
+    ) -> "TransientSimulator":
+        """Create simulator with parameters extracted from a Measurement Set.
+
+        Args:
+            ms_path: Path to the Measurement Set
+            config: TransientConfig with generation parameters
+            extract_scans: If True, extract scan boundaries for scan-aware peak time
+                sampling. Set to False to sample from the entire observation.
+        """
+        return cls(ObservationParams.from_ms(ms_path, extract_scans=extract_scans), config)
 
     def generate(
         self, nsources: int, seed: Optional[int] = None, name_prefix: str = "sim"
@@ -53,7 +62,11 @@ class TransientSimulator:
             # Scale RA range by 1/cos(DEC) to account for spherical coordinates
             ra_half_fov = half_fov / np.cos(np.radians(dec))
             ra = (obs.ra_center_deg + rng.uniform(-ra_half_fov, ra_half_fov)) % 360.0
-            peak_time = float(rng.uniform(0, obs.time_range_sec))
+            # Sample peak_time within science scans only (if scan info available)
+            if obs.scans:
+                peak_time = obs.sample_science_time(rng)
+            else:
+                peak_time = float(rng.uniform(0, obs.time_range_sec))
             duration = float(rng.uniform(duration_min, duration_max))
 
             periodic = rng.random() < cfg.periodic_fraction
@@ -157,13 +170,15 @@ if __name__ == "__main__":
     parser.add_argument("--ms", required=True, help="Path to Measurement Set")
     parser.add_argument("--nsources", type=int, default=10, help="Number of transients")
     parser.add_argument("--seed", type=int, help="Random seed")
-    parser.add_argument("--output", "-o", required=True, help="Output YAML path")
+    parser.add_argument(
+        "--output", "-o", required=True,
+        help="Base name for outputs (derives .yaml, .ecsv, .zarr, .fits, .reg)"
+    )
     parser.add_argument(
         "--input-transients",
         "-i",
         help="Input transients YAML (skip generation, use for HCI)",
     )
-    parser.add_argument("--manifest", "-m", help="Output manifest ECSV path")
     parser.add_argument(
         "--fov", type=float, default=2.0, help="Field of view (degrees)"
     )
@@ -172,10 +187,10 @@ if __name__ == "__main__":
     )
     # SNR-based flux generation
     parser.add_argument(
-        "--snr-min", type=float, default=5.0, help="Min target SNR (default: 5.0)"
+        "--snr-min", type=float, default=8.0, help="Min target SNR (default: 8.0)"
     )
     parser.add_argument(
-        "--snr-max", type=float, default=20.0, help="Max target SNR (default: 20.0)"
+        "--snr-max", type=float, default=25.0, help="Max target SNR (default: 25.0)"
     )
     parser.add_argument(
         "--rms",
@@ -189,10 +204,8 @@ if __name__ == "__main__":
         action="store_true",
         help="Run HCI injection after generating transients",
     )
-    parser.add_argument("--hci-output", help="Output directory for HCI zarr cube")
     parser.add_argument("--venv", help="Path to virtualenv (e.g. ~/venvs/sim_env)")
-    parser.add_argument("--nx", type=int, default=3072, help="Image size x")
-    parser.add_argument("--ny", type=int, default=3072, help="Image size y")
+    parser.add_argument("--npix", type=int, default=3072, help="Image size (pixels)")
     parser.add_argument(
         "--cell-size", type=float, default=2.4, help="Cell size (arcsec)"
     )
@@ -203,16 +216,29 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip zarr to FITS conversion (default: convert)",
     )
+    # Scan-aware sampling
+    parser.add_argument(
+        "--no-scan-aware",
+        action="store_true",
+        help="Disable scan-aware peak time sampling (sample from entire observation)",
+    )
     args = parser.parse_args()
 
+    # Derive all output paths from -o
+    output_path = Path(args.output)
+    base = output_path.with_suffix("")  # Remove any extension (handles both "run1" and "run1.yaml")
+    yaml_path = base.with_suffix(".yaml")
+    manifest_path = base.with_suffix(".ecsv")
+    zarr_path = base.with_suffix(".zarr")
+
     # Check FOV against cube size
-    max_fov_deg = min(args.nx, args.ny) * args.cell_size / 3600.0
+    max_fov_deg = args.npix * args.cell_size / 3600.0
     if args.fov > max_fov_deg:
         print(
             f"Warning: Requested FOV ({args.fov} deg) exceeds cube size ({max_fov_deg:.2f} deg)"
         )
         print(
-            f'  Clamping FOV to {max_fov_deg:.2f} deg (cube: {args.nx}x{args.ny} @ {args.cell_size}")'
+            f'  Clamping FOV to {max_fov_deg:.2f} deg (cube: {args.npix}x{args.npix} @ {args.cell_size}")'
         )
         args.fov = max_fov_deg
 
@@ -222,10 +248,25 @@ if __name__ == "__main__":
         rms_jy=args.rms,
         duration_max_sec=args.duration_max,
     )
-    sim = TransientSimulator.from_ms(args.ms, cfg)
+    extract_scans = not args.no_scan_aware
+    sim = TransientSimulator.from_ms(args.ms, cfg, extract_scans=extract_scans)
+
+    # Report scan extraction status
+    if sim.obs.scans:
+        science_scans = sim.obs.get_science_scans()
+        total_science_time = sum(s.duration_sec for s in science_scans)
+        print(
+            f"Scan-aware sampling: {len(science_scans)} science scans, "
+            f"{total_science_time:.1f}s total ({total_science_time/sim.obs.time_range_sec*100:.1f}% of observation)"
+        )
+    elif extract_scans:
+        print("Warning: No scan info found, using full time range")
+    else:
+        print("Scan-aware sampling disabled, using full time range")
+
     hci_cfg = HCIConfig(
-        nx=args.nx,
-        ny=args.ny,
+        nx=args.npix,
+        ny=args.npix,
         cell_size=args.cell_size,
         fov=args.fov,
         nworkers=args.nworkers,
@@ -243,17 +284,15 @@ if __name__ == "__main__":
         # Generate transients with direct SNR-based flux
         sim.generate(nsources=args.nsources, seed=args.seed)
         print(sim.summary())
-        transient_yaml_path = Path(args.output)
-        sim.save(args.output)
+        transient_yaml_path = yaml_path
+        sim.save(yaml_path)
 
     # Run HCI with transients
     if args.run_hci:
-        if not args.hci_output:
-            args.hci_output = str(transient_yaml_path.with_suffix(".zarr"))
-        print(f"Running HCI injection -> {args.hci_output}")
+        print(f"Running HCI injection -> {zarr_path}")
         result = run_hci(
             ms_path=sim.obs.ms_path,
-            output_dir=args.hci_output,
+            output_dir=str(zarr_path),
             transient_yaml=str(transient_yaml_path),
             hci_config=hci_cfg,
             venv_path=args.venv,
@@ -262,18 +301,17 @@ if __name__ == "__main__":
             print(f"HCI complete in {result['elapsed_sec']:.1f}s")
             # Convert to FITS by default
             if not args.no_fits:
-                # pfb hci creates zarr store at exact output path (no .zarr suffix)
-                zarr_path = args.hci_output.rstrip("/")
-                fits_path = zarr_path + ".fits"
+                fits_path = zarr_path.with_suffix(".fits")
                 print(f"Converting to FITS -> {fits_path}")
-                zarr_to_fits(zarr_path, fits_path)
+                zarr_to_fits(str(zarr_path), str(fits_path))
         else:
             print(f"HCI failed: {result.get('stderr', 'unknown error')}")
 
-    if args.manifest and sim.transients:
-        sim.save_manifest(args.manifest)
-        print(f"Manifest saved to {args.manifest}")
+    # Always save manifest when transients were generated (not when using --input-transients)
+    if sim.transients:
+        sim.save_manifest(manifest_path)
+        print(f"Manifest saved to {manifest_path}")
         # Auto-generate region file
-        reg_path = str(Path(args.manifest).with_suffix(".reg"))
-        count = manifest_to_regions(args.manifest, reg_path)
+        reg_path = manifest_path.with_suffix(".reg")
+        count = manifest_to_regions(str(manifest_path), str(reg_path))
         print(f"Region file saved to {reg_path} ({count} regions)")
