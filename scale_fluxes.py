@@ -2,7 +2,6 @@
 
 import argparse
 import numpy as np
-from pathlib import Path
 
 from manifest_io import load_manifest_ecsv, save_manifest_ecsv
 from flux_utils import compute_expected_flux

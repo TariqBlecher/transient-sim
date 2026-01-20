@@ -16,7 +16,6 @@ from obs_params import ObservationParams
 from cube_utils import extract_rms_from_cube
 from transient import Transient, TransientConfig, save_transients_yaml
 from hci_runner import HCIConfig, run_hci
-from scale_fluxes import scale_fluxes as scale_fluxes_from_manifest
 from zarr_to_fits_simple import zarr_to_fits
 
 
