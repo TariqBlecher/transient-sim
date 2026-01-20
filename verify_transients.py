@@ -5,8 +5,13 @@ import numpy as np
 
 from manifest_io import load_manifest_ecsv
 from flux_utils import compute_expected_flux
-from cube_utils import load_cube, get_pixel_coords, extract_lightcurve, compute_bin_edges
-from obs_params import get_frequency_range_from_ms
+from verify_utils import (
+    load_cube,
+    get_pixel_coords,
+    extract_lightcurve,
+    compute_bin_edges,
+    get_frequency_range_from_ms,
+)
 
 
 def verify_transients(manifest_path, cube_path, ms_path=None):
@@ -21,7 +26,7 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
         List of result dicts per transient
     """
     df, metadata = load_manifest_ecsv(manifest_path)
-    transients = df.to_dict('records')
+    transients = df.to_dict("records")
     print(f"Loaded {len(transients)} transients from manifest")
 
     # Load cube
@@ -33,23 +38,31 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
     if ms_path:
         try:
             freq_min, freq_max, _ = get_frequency_range_from_ms(ms_path)
-            print(f"Frequency range: {freq_min/1e9:.3f} - {freq_max/1e9:.3f} GHz")
+            print(f"Frequency range: {freq_min / 1e9:.3f} - {freq_max / 1e9:.3f} GHz")
         except Exception as e:
             print(f"Warning: Could not get frequency range from MS '{ms_path}': {e}")
-            print("         Spectral correction will be SKIPPED - results may be inaccurate!")
+            print(
+                "         Spectral correction will be SKIPPED - results may be inaccurate!"
+            )
     elif metadata.get("ms_path"):
         try:
             freq_min, freq_max, _ = get_frequency_range_from_ms(metadata["ms_path"])
-            print(f"Frequency range: {freq_min/1e9:.3f} - {freq_max/1e9:.3f} GHz")
+            print(f"Frequency range: {freq_min / 1e9:.3f} - {freq_max / 1e9:.3f} GHz")
         except Exception as e:
-            print(f"Warning: Could not get frequency range from MS '{metadata['ms_path']}': {e}")
-            print("         Spectral correction will be SKIPPED - results may be inaccurate!")
+            print(
+                f"Warning: Could not get frequency range from MS '{metadata['ms_path']}': {e}"
+            )
+            print(
+                "         Spectral correction will be SKIPPED - results may be inaccurate!"
+            )
     else:
         print("Warning: No MS path provided - spectral correction will be SKIPPED")
 
     # Compute time bins
     n_times = len(times_rel)
-    integration = float(np.median(np.diff(times_rel))) if n_times > 1 else float(times_rel.max())
+    integration = (
+        float(np.median(np.diff(times_rel))) if n_times > 1 else float(times_rel.max())
+    )
     bin_edges = compute_bin_edges(times_rel, integration)
     print(f"Time steps: {n_times}, integration: {integration:.2f}s")
 
@@ -86,28 +99,36 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
         bin_start = bin_edges[time_idx]
         bin_end = bin_edges[time_idx + 1]
         expected = compute_expected_flux(
-            peak_flux, peak_time, duration, shape, bin_start, bin_end,
+            peak_flux,
+            peak_time,
+            duration,
+            shape,
+            bin_start,
+            bin_end,
             spectral_index=spectral_index,
             reference_freq=reference_freq,
             freq_min=freq_min,
-            freq_max=freq_max
+            freq_max=freq_max,
         )
 
-        results.append({
-            "name": t["name"],
-            "expected": expected,
-            "measured": measured_at_peak,
-            "max_measured": max_measured,
-            "max_time_idx": max_time_idx,
-            "peak_time": peak_time,
-            "time_idx": time_idx,
-            "shape": shape,
-            "peak_flux": peak_flux,
-            "spectral_index": spectral_index
-        })
+        results.append(
+            {
+                "name": t["name"],
+                "expected": expected,
+                "measured": measured_at_peak,
+                "max_measured": max_measured,
+                "max_time_idx": max_time_idx,
+                "peak_time": peak_time,
+                "time_idx": time_idx,
+                "shape": shape,
+                "peak_flux": peak_flux,
+                "spectral_index": spectral_index,
+            }
+        )
 
     # Get noise from rms array - need to reopen for rms
     import xarray as xr
+
     ds = xr.open_zarr(cube_path)
     rms = float(ds.rms.to_numpy().mean())
     print(f"RMS noise: {rms:.4f} Jy")
@@ -130,12 +151,16 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
     print(f"Detected (>5 sigma): {n_detected}/{len(valid)}")
 
     # Print results table
-    print("\nName         Expected   Measured  MaxMeas   Ratio    n_sig  Shape       OK")
+    print(
+        "\nName         Expected   Measured  MaxMeas   Ratio    n_sig  Shape       OK"
+    )
     print("-" * 80)
     for r in valid[:15]:
         ok = "Y" if r["pass"] else "N"
-        print(f"{r['name']:<12} {r['expected']:>8.3f} {r['measured']:>10.3f} {r['max_measured']:>8.3f} "
-              f"{r['ratio']:>7.2f} {r['n_sigma']:>6.1f} {r['shape']:<12} {ok}")
+        print(
+            f"{r['name']:<12} {r['expected']:>8.3f} {r['measured']:>10.3f} {r['max_measured']:>8.3f} "
+            f"{r['ratio']:>7.2f} {r['n_sigma']:>6.1f} {r['shape']:<12} {ok}"
+        )
 
     # Analyze by shape
     print("\nBy shape:")
@@ -145,8 +170,10 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
             n_pass_shape = sum(1 for r in shape_results if r["pass"])
             n_det_shape = sum(1 for r in shape_results if r["measured"] > 5 * rms)
             avg_ratio = np.mean([r["ratio"] for r in shape_results])
-            print(f"  {shape}: {n_pass_shape}/{len(shape_results)} pass, "
-                  f"{n_det_shape} detected, avg ratio: {avg_ratio:.2f}")
+            print(
+                f"  {shape}: {n_pass_shape}/{len(shape_results)} pass, "
+                f"{n_det_shape} detected, avg ratio: {avg_ratio:.2f}"
+            )
 
     return results
 
@@ -154,7 +181,7 @@ def verify_transients(manifest_path, cube_path, ms_path=None):
 def show_lightcurves(manifest_path, cube_path, n=5):
     """Show detailed lightcurves for first n transients."""
     df, _ = load_manifest_ecsv(manifest_path)
-    transients = df.to_dict('records')
+    transients = df.to_dict("records")
 
     cube, cube_wcs, times_rel = load_cube(cube_path)
 
@@ -186,7 +213,9 @@ if __name__ == "__main__":
     parser.add_argument("--manifest", required=True, help="Manifest ECSV path")
     parser.add_argument("--cube", required=True, help="Zarr cube path")
     parser.add_argument("--ms", help="Path to Measurement Set (for frequency info)")
-    parser.add_argument("--lightcurves", action="store_true", help="Show detailed lightcurves")
+    parser.add_argument(
+        "--lightcurves", action="store_true", help="Show detailed lightcurves"
+    )
     args = parser.parse_args()
 
     if args.lightcurves:

@@ -14,20 +14,20 @@ def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
     Squeezes degenerate FREQ dimension (size=1) to produce 4D CARTA-compatible output.
     """
 
-    ds = xarray.open_zarr(zarr_path, chunks={'TIME': time_chunk})
+    ds = xarray.open_zarr(zarr_path, chunks={"TIME": time_chunk})
 
-    if 'cube' not in ds.data_vars:
+    if "cube" not in ds.data_vars:
         raise RuntimeError(f"{zarr_path} does not contain a 'cube' variable")
 
-    data = ds.data_vars['cube']
+    data = ds.data_vars["cube"]
     print(f"Cube shape: {data.shape}, dims: {data.dims}")
 
     # Output filename
     if out_fits is None:
-        out_fits = zarr_path.rstrip('/').replace('.zarr', '.fits')
+        out_fits = zarr_path.rstrip("/").replace(".zarr", ".fits")
 
     # FITS header from zarr attrs
-    hdr = dict(ds.attrs.get('fits_header', {}))
+    hdr = dict(ds.attrs.get("fits_header", {}))
     hdr.pop("WCSAXES", None)
 
     # Detect if we need to squeeze FREQ dimension
@@ -40,11 +40,13 @@ def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
     else:
         out_shape = data.shape
 
-    hdr['NAXIS'] = len(out_shape)
-    hdr['BITPIX'] = -32  # float32
+    hdr["NAXIS"] = len(out_shape)
+    hdr["BITPIX"] = -32  # float32
 
     # Build ordered header with standard keywords first
-    kws = ["SIMPLE", "BITPIX", "NAXIS"] + [f"NAXIS{i}" for i in range(1, len(out_shape)+1)]
+    kws = ["SIMPLE", "BITPIX", "NAXIS"] + [
+        f"NAXIS{i}" for i in range(1, len(out_shape) + 1)
+    ]
     ordered_header = {}
     for kw in kws:
         if kw in hdr:
@@ -53,15 +55,15 @@ def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
 
     # Set NAXIS values from output shape (reversed for FITS)
     for i, sz in enumerate(reversed(out_shape)):
-        ordered_header[f"NAXIS{i+1}"] = sz
+        ordered_header[f"NAXIS{i + 1}"] = sz
 
-    ordered_header['WCSAXES'] = len(out_shape)
+    ordered_header["WCSAXES"] = len(out_shape)
 
     # Remap WCS keywords if squeezing FREQ
     # Original 5D FITS axes: 1=X, 2=Y, 3=TIME, 4=FREQ, 5=STOKES
     # Output 4D FITS axes:   1=X, 2=Y, 3=TIME, 4=STOKES
     if squeeze_freq:
-        wcs_kws = ['CTYPE', 'CRPIX', 'CRVAL', 'CDELT', 'CUNIT']
+        wcs_kws = ["CTYPE", "CRPIX", "CRVAL", "CDELT", "CUNIT"]
         # Move axis 5 (STOKES) to axis 4
         for kw in wcs_kws:
             if f"{kw}5" in ordered_header:
@@ -70,7 +72,7 @@ def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
                 # Remove old FREQ axis keywords
                 ordered_header.pop(f"{kw}4")
         # Remove any leftover axis 5 keywords
-        for kw in wcs_kws + ['NAXIS']:
+        for kw in wcs_kws + ["NAXIS"]:
             ordered_header.pop(f"{kw}5", None)
 
     print(f"Writing to {out_fits}")
@@ -85,15 +87,17 @@ def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
                 for t in range(0, data.shape[2], time_chunk):
-                    chunk = data[i, j, t:t+time_chunk].data.compute().astype(np.float32)
+                    chunk = (
+                        data[i, j, t : t + time_chunk].data.compute().astype(np.float32)
+                    )
                     shdu.write(chunk)
-                    print(f"  Written stokes={i}, freq={j}, time={t}-{t+len(chunk)}")
+                    print(f"  Written stokes={i}, freq={j}, time={t}-{t + len(chunk)}")
     elif len(data.shape) == 4:  # (stokes, time, y, x)
         for i in range(data.shape[0]):
             for t in range(0, data.shape[1], time_chunk):
-                chunk = data[i, t:t+time_chunk].data.compute().astype(np.float32)
+                chunk = data[i, t : t + time_chunk].data.compute().astype(np.float32)
                 shdu.write(chunk)
-                print(f"  Written stokes={i}, time={t}-{t+len(chunk)}")
+                print(f"  Written stokes={i}, time={t}-{t + len(chunk)}")
     else:
         raise ValueError(f"Unexpected shape: {data.shape}")
 

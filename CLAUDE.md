@@ -6,17 +6,16 @@ A modular framework for generating and verifying synthetic radio transients for 
 
 ```
 sims/
-├── flux_utils.py        # Pure flux computation (no external deps beyond numpy/scipy)
-├── obs_params.py        # MS parameter extraction (casacore)
+├── flux_utils.py        # Pure flux computation + SNR scaling (no external deps beyond numpy/scipy)
+├── obs_params.py        # ObservationParams dataclass + MS extraction (casacore)
 ├── transient.py         # Transient dataclass + YAML I/O
-├── cube_utils.py        # Zarr cube I/O + WCS utilities
+├── cube_utils.py        # RMS extraction from zarr cubes (xarray)
+├── verify_utils.py      # Verification-only utilities (cube loading, WCS, lightcurves)
 ├── hci_runner.py        # HCI subprocess orchestration
 ├── manifest_io.py       # ECSV manifest I/O
 ├── transient_sim.py     # CLI + TransientSimulator facade (MASTER ORCHESTRATOR)
-├── scale_fluxes.py      # Ensures sensible fluxes (integrated into transient_sim, also standalone CLI)
 ├── verify_transients.py # Injection verification CLI
 ├── manifest_to_regions.py # DS9 region file generation
-└── Depreciated/         # Archived scripts
 ```
 
 ## Dependency Graph
@@ -31,8 +30,11 @@ obs_params.py (leaf - no internal deps)
 transient.py
     └── (no internal deps, pure dataclasses + YAML)
 
-cube_utils.py
-    └── numpy, xarray, astropy
+cube_utils.py (leaf - no internal deps)
+    └── xarray
+
+verify_utils.py (verification-only, isolated from main pipeline)
+    └── numpy, xarray, astropy, casacore
 
 hci_runner.py
     └── subprocess, pathlib
@@ -47,20 +49,11 @@ transient_sim.py (MASTER ORCHESTRATOR)
     ├── transient
     ├── hci_runner
     ├── manifest_io
-    ├── scale_fluxes  ← integrated, not separate step
-    └── zarr_to_fits_simple  ← FITS conversion (default)
+    └── zarr_to_fits_simple
 
-scale_fluxes.py (integrated into transient_sim; also available as standalone CLI)
+verify_transients.py (isolated - uses verify_utils instead of core modules)
     ├── flux_utils
-    ├── obs_params
-    ├── cube_utils
-    ├── transient
-    └── manifest_io
-
-verify_transients.py
-    ├── flux_utils
-    ├── obs_params
-    ├── cube_utils
+    ├── verify_utils
     └── manifest_io
 ```
 
@@ -117,19 +110,6 @@ python transient_sim.py --ms /path/to/ms --nsources 50 \
 python transient_sim.py --ms /path/to/ms --nsources 50 \
     --no-scale-snr \
     -o transients.yaml -m manifest.ecsv
-```
-
-### Standalone Scale Fluxes (Special Cases)
-
-Normally, scaling is handled automatically by `transient_sim.py`. The standalone CLI is for re-scaling an existing manifest (e.g., to test different SNR ranges without regenerating transients):
-```bash
-# Re-scale existing manifest with known RMS
-python scale_fluxes.py --manifest manifest.ecsv --rms 0.001 \
-    --ms /path/to/ms -o scaled.yaml --snr-min 10 --snr-max 30
-
-# Or extract RMS from a cube
-python scale_fluxes.py --manifest manifest.ecsv --rms-cube baseline.zarr \
-    --ms /path/to/ms -o scaled.yaml --snr-min 5 --snr-max 20
 ```
 
 ### Verify Injection
