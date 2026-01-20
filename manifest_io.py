@@ -1,6 +1,5 @@
 """ECSV manifest I/O for transient simulation data."""
 
-import json
 import pandas as pd
 from pathlib import Path
 from dataclasses import asdict
