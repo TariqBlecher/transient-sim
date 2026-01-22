@@ -115,8 +115,8 @@ def extract_lightcurve(
         aperture: Half-width of extraction box (default 2 = 5x5 box)
 
     Returns:
-        1D array of max flux values per time step
+        1D array of max flux values per time step (ignoring NaNs)
     """
     y_slice = slice(max(0, py - aperture), min(cube.shape[1], py + aperture + 1))
     x_slice = slice(max(0, px - aperture), min(cube.shape[2], px + aperture + 1))
-    return cube[:, y_slice, x_slice].max(axis=(1, 2))
+    return np.nanmax(cube[:, y_slice, x_slice], axis=(1, 2))

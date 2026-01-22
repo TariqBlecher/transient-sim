@@ -8,7 +8,9 @@ import xarray
 from astropy.io import fits
 
 
-def zarr_to_fits(zarr_path: str, out_fits: str = None, time_chunk: int = 16):
+from typing import Optional
+
+def zarr_to_fits(zarr_path: str, out_fits: Optional[str] = None, time_chunk: int = 16):
     """Convert a zarr cube to FITS format using streaming.
 
     Squeezes degenerate FREQ dimension (size=1) to produce 4D CARTA-compatible output.

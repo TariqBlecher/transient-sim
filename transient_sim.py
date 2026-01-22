@@ -227,7 +227,9 @@ if __name__ == "__main__":
     # Derive all output paths from -o
     output_path = Path(args.output)
     base = output_path.with_suffix("")  # Remove any extension (handles both "run1" and "run1.yaml")
-    yaml_path = base.with_suffix(".yaml")
+    # Use _transients suffix for YAML to avoid collision with pfb's intermediate zarr
+    # (pfb creates {yaml_basename}.zarr for transient light curves)
+    yaml_path = base.parent / f"{base.name}_transients.yaml"
     manifest_path = base.with_suffix(".ecsv")
     zarr_path = base.with_suffix(".zarr")
 

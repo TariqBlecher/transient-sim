@@ -51,7 +51,6 @@ transient_sim.py (MASTER ORCHESTRATOR)
     └── zarr_to_fits_simple
 
 verify_transients.py (isolated - uses verify_utils instead of core modules)
-    ├── flux_utils
     ├── verify_utils
     └── manifest_io
 ```
@@ -88,7 +87,8 @@ peak_flux = uniform(snr_min, snr_max) * rms
 **Generate transients with HCI injection:**
 ```bash
 # Simplified: -o is the only required output argument
-# Creates: run1.yaml, run1.ecsv, run1.zarr, run1.fits, run1.reg
+# Creates: run1_transients.yaml, run1_transients.zarr (pfb lightcurves),
+#          run1.ecsv, run1.zarr, run1.fits, run1.reg
 python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci
 
 # Custom SNR range and RMS
@@ -102,7 +102,7 @@ python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci --no-fi
 
 ### Verify Injection
 ```bash
-python verify_transients.py --manifest run1.ecsv --cube run1.zarr --ms /path/to/ms
+python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ```
 
 ## Pipeline Flow
@@ -112,9 +112,10 @@ transient_sim.py --ms ... -o {base} --run-hci
     │
     ├─ Step 1: Generate transients (peak_flux = uniform(snr_min, snr_max) * rms)
     │
-    ├─ Step 2: Save {base}.yaml + {base}.ecsv + {base}.reg
+    ├─ Step 2: Save {base}_transients.yaml + {base}.ecsv + {base}.reg
     │
     ├─ Step 3: Run HCI with transients → {base}.zarr
+    │           (pfb also creates {base}_transients.zarr with light curves)
     │
     └─ Step 4: Convert to FITS (DEFAULT ON, disable with --no-fits) → {base}.fits
 ```
@@ -159,6 +160,8 @@ pfb hci \
 - `--robustness 0` - Briggs weighting
 - `--stack` - Create single stacked cube (without this, pfb creates individual zarr files per time step)
 
+**Intermediate file naming**: When `--inject-transients foo.yaml` is used, pfb creates `foo.zarr` containing transient light curves (time/freq profiles). This is why `transient_sim.py` names the config `{base}_transients.yaml` - to avoid collision with the output cube `{base}.zarr`.
+
 ## Utilities
 
 ### zarr_to_fits_simple.py
@@ -182,7 +185,7 @@ SSH: `blecher@tina.ru.ac.za`
 ```bash
 ssh blecher@tina.ru.ac.za ". ~/venvs/sim_env/bin/activate && python3 script.py"
 ```
-
+Remember to re-copy script over to tina if it was edited locally.
 ### Key Paths
 
 | Path | Description |
