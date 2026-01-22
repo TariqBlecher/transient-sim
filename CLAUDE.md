@@ -84,20 +84,23 @@ peak_flux = uniform(snr_min, snr_max) * rms
 
 ### Recommended Workflow (Integrated)
 
-**Generate transients with HCI injection:**
+**Generate transients with HCI injection (default):**
 ```bash
 # Simplified: -o is the only required output argument
 # Creates: run1_transients.yaml, run1_transients.zarr (pfb lightcurves),
 #          run1.ecsv, run1.zarr, run1.fits, run1.reg
-python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1
 
 # Custom SNR range and RMS
 python transient_sim.py --ms /path/to/ms --nsources 50 \
     --snr-min 10 --snr-max 50 --rms 0.001 \
-    -o run1 --run-hci
+    -o run1
 
 # Skip FITS conversion (zarr only)
-python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --run-hci --no-fits
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --no-fits
+
+# Skip HCI injection (generate transients config only)
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --no-hci
 ```
 
 ### Verify Injection
@@ -108,13 +111,13 @@ python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ## Pipeline Flow
 
 ```
-transient_sim.py --ms ... -o {base} --run-hci
+transient_sim.py --ms ... -o {base}
     │
     ├─ Step 1: Generate transients (peak_flux = uniform(snr_min, snr_max) * rms)
     │
     ├─ Step 2: Save {base}_transients.yaml + {base}.ecsv + {base}.reg
     │
-    ├─ Step 3: Run HCI with transients → {base}.zarr
+    ├─ Step 3: Run HCI with transients → {base}.zarr (disable with --no-hci)
     │           (pfb also creates {base}_transients.zarr with light curves)
     │
     └─ Step 4: Convert to FITS (DEFAULT ON, disable with --no-fits) → {base}.fits
@@ -132,7 +135,7 @@ transient_sim.py --ms ... -o {base} --run-hci
 
 ## pfb hci Notes
 
-**IMPORTANT**: Do not run `pfb hci` directly unless testing something different from the normal workflow. Use `transient_sim.py --run-hci` which has the correct parameters built in.
+**IMPORTANT**: Do not run `pfb hci` directly unless testing something different from the normal workflow. Use `transient_sim.py` which runs HCI by default with the correct parameters built in.
 
 If you must run `pfb hci` directly, use ALL required parameters:
 

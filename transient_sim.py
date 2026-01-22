@@ -200,9 +200,9 @@ if __name__ == "__main__":
     )
     # HCI options
     parser.add_argument(
-        "--run-hci",
+        "--no-hci",
         action="store_true",
-        help="Run HCI injection after generating transients",
+        help="Skip HCI injection (default: run HCI)",
     )
     parser.add_argument("--venv", help="Path to virtualenv (e.g. ~/venvs/sim_env)")
     parser.add_argument("--npix", type=int, default=3072, help="Image size (pixels)")
@@ -289,8 +289,8 @@ if __name__ == "__main__":
         transient_yaml_path = yaml_path
         sim.save(yaml_path)
 
-    # Run HCI with transients
-    if args.run_hci:
+    # Run HCI with transients (default: on)
+    if not args.no_hci:
         print(f"Running HCI injection -> {zarr_path}")
         result = run_hci(
             ms_path=sim.obs.ms_path,
