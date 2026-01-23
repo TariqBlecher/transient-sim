@@ -48,6 +48,22 @@ python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --no-hci
 python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ```
 
+**Output table columns:**
+| Column | Description |
+|--------|-------------|
+| Name | Transient identifier |
+| Expected | Expected flux at peak time bin (Jy) |
+| Measured | Measured flux from cube at peak pixel/time (Jy) |
+| Ratio | Measured/Expected flux ratio (ideal: ~1.0) |
+| SNR | Measured flux / RMS noise |
+| d/sig | Absolute difference in sigma units |
+| Shape | Temporal profile (gaussian/exponential/step) |
+| OK | Y if measured within 3σ of expected |
+
+**Output files:**
+- `{manifest}_verification.ecsv` - Full results with all metrics
+- `{manifest}_lightcurves/` - PNG plots of each transient's lightcurve
+
 ### manifest_to_regions.py - DS9 Region Files
 
 ```bash
