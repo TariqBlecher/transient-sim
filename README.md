@@ -18,9 +18,9 @@ This framework generates realistic radio transients with configurable temporal p
 Generate 50 transients with SNR scaling and HCI injection:
 
 ```bash
-python transient_sim.py --ms /path/to/measurement.ms --nsources 50 \
-    --run-hci --hci-output injected.zarr \
-    -o transients.yaml -m manifest.ecsv
+# -o is the only required output argument
+# Creates: run1_transients.yaml, run1.ecsv, run1.zarr, run1.fits, run1.reg
+python transient_sim.py --ms /path/to/measurement.ms --nsources 50 -o run1
 ```
 
 ## Key Commands
@@ -29,25 +29,23 @@ python transient_sim.py --ms /path/to/measurement.ms --nsources 50 \
 
 ```bash
 # Default workflow (SNR scaling + HCI injection + FITS conversion)
-python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --run-hci --hci-output output.zarr \
-    -o transients.yaml -m manifest.ecsv
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1
 
 # Custom SNR range and RMS
 python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --snr-min 10 --snr-max 50 --rms 0.001 \
-    --run-hci --hci-output output.zarr \
-    -o transients.yaml -m manifest.ecsv
+    --snr-min 10 --snr-max 50 --rms 0.001 -o run1
 
-# Skip SNR scaling (use raw flux_range values)
-python transient_sim.py --ms /path/to/ms --nsources 50 \
-    --no-scale-snr -o transients.yaml -m manifest.ecsv
+# Skip FITS conversion (zarr only)
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --no-fits
+
+# Skip HCI injection (generate transients config only)
+python transient_sim.py --ms /path/to/ms --nsources 50 -o run1 --no-hci
 ```
 
 ### verify_transients.py - Injection Verification
 
 ```bash
-python verify_transients.py --manifest manifest.ecsv --cube output.zarr --ms /path/to/ms
+python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ```
 
 ### manifest_to_regions.py - DS9 Region Files

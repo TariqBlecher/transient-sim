@@ -44,7 +44,7 @@ def verify_transients(manifest_path, cube_path):
         time_idx = int(np.argmin(np.abs(times_rel - peak_time)))
 
         # Extract lightcurve
-        lightcurve = extract_lightcurve(cube, px, py, aperture=2)
+        lightcurve = extract_lightcurve(cube, px, py)
 
         # Get measured at expected peak time bin
         measured_at_peak = float(lightcurve[time_idx])
@@ -72,9 +72,10 @@ def verify_transients(manifest_path, cube_path):
     for r in valid:
         diff = abs(r["measured"] - r["expected"])
         r["diff"] = diff
-        r["n_sigma"] = diff / rms if rms > 0 else 0
+        r["diff_sigma"] = diff / rms if rms > 0 else 0
+        r["snr"] = r["measured"] / rms if rms > 0 else 0
         r["ratio"] = r["measured"] / r["expected"] if r["expected"] > 0 else 0
-        r["measured_matches_expected_within_3sigma"] = r["n_sigma"] < 3
+        r["measured_matches_expected_within_3sigma"] = r["diff_sigma"] < 3
 
     n_pass = sum(1 for r in valid if r["measured_matches_expected_within_3sigma"])
     print(f"\nResults: {n_pass}/{len(valid)} transients within 3 sigma of expected")
@@ -85,14 +86,14 @@ def verify_transients(manifest_path, cube_path):
 
     # Print results table
     print(
-        "\nName         Expected   Measured   Ratio   n_sig  Shape       OK"
+        "\nName         Expected   Measured   Ratio    SNR  d/sig  Shape       OK"
     )
-    print("-" * 70)
+    print("-" * 75)
     for r in valid[:15]:
         ok = "Y" if r["measured_matches_expected_within_3sigma"] else "N"
         print(
             f"{r['name']:<12} {r['expected']:>8.5f} {r['measured']:>10.5f} "
-            f"{r['ratio']:>7.2f} {r['n_sigma']:>6.1f}  {r['shape']:<11} {ok}"
+            f"{r['ratio']:>7.2f} {r['snr']:>6.1f} {r['diff_sigma']:>6.1f}  {r['shape']:<11} {ok}"
         )
 
     # Analyze by shape
@@ -190,7 +191,7 @@ def plot_lightcurves(manifest_path, cube_path, output_dir):
 
     for t in transients:
         px, py = get_pixel_coords(cube_wcs, t["ra_deg"], t["dec_deg"])
-        lightcurve = extract_lightcurve(cube, px, py, aperture=2)
+        lightcurve = extract_lightcurve(cube, px, py)
 
         name = t["name"]
         shape = t["shape"]

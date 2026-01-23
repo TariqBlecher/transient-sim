@@ -16,9 +16,7 @@ class TransientConfig:
 
     fov_deg: float = 2.0
     duration_max_sec: float = 180.0
-    shapes: List[str] = field(
-        default_factory=lambda: ["gaussian", "exponential", "step"]
-    )
+    shapes: List[str] = field(default_factory=lambda: ["gaussian"])
     snr_range: tuple = (5.0, 20.0)  # Target SNR range for generated transients
     rms_jy: float = 1.4e-04  # Default RMS from SM1R00C04_1min baseline
     spectral_index_range: tuple = (-2.0, 0.0)

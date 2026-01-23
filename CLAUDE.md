@@ -76,7 +76,7 @@ Transient fluxes are generated directly from SNR parameters:
 peak_flux = uniform(snr_min, snr_max) * rms
 ```
 
-- Default SNR range: 5-20 (configurable via `--snr-min`, `--snr-max`)
+- Default SNR range: 8-25 (configurable via `--snr-min`, `--snr-max`)
 - Default RMS: 1.4e-04 Jy (from SM1R00C04_1min baseline, override with `--rms`)
 - This ensures all transients have detectable, realistic fluxes for algorithm validation
 
@@ -179,6 +179,13 @@ Uses streaming HDU writer for memory efficiency with large cubes.
 - numpy, scipy, xarray (zarr), astropy, pyyaml
 - python-casacore (MS extraction)
 - pfb-imaging toolkit (external, provides `pfb hci` command)
+
+## Local Development
+
+For local testing, use the local virtualenv:
+```bash
+.venv/bin/python transient_sim.py --help
+```
 
 ## Remote Execution (tina)
 

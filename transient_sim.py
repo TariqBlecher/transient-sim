@@ -222,6 +222,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable scan-aware peak time sampling (sample from entire observation)",
     )
+    # Shape selection
+    parser.add_argument(
+        "--shapes",
+        nargs="+",
+        choices=["gaussian", "exponential", "step"],
+        default=["gaussian"],
+        help="Transient shapes to generate (default: gaussian only)",
+    )
     args = parser.parse_args()
 
     # Derive all output paths from -o
@@ -249,6 +257,7 @@ if __name__ == "__main__":
         snr_range=(args.snr_min, args.snr_max),
         rms_jy=args.rms,
         duration_max_sec=args.duration_max,
+        shapes=args.shapes,
     )
     extract_scans = not args.no_scan_aware
     sim = TransientSimulator.from_ms(args.ms, cfg, extract_scans=extract_scans)

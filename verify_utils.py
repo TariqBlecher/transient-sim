@@ -103,20 +103,15 @@ def compute_bin_edges(times_rel: np.ndarray, integration: float = None) -> np.nd
     return bin_edges
 
 
-def extract_lightcurve(
-    cube: np.ndarray, px: int, py: int, aperture: int = 2
-) -> np.ndarray:
-    """Extract lightcurve at a pixel position with aperture.
+def extract_lightcurve(cube: np.ndarray, px: int, py: int) -> np.ndarray:
+    """Extract lightcurve at a pixel position.
 
     Args:
         cube: 3D data array (time, y, x)
         px: X pixel coordinate
         py: Y pixel coordinate
-        aperture: Half-width of extraction box (default 2 = 5x5 box)
 
     Returns:
-        1D array of max flux values per time step (ignoring NaNs)
+        1D array of flux values per time step at the central pixel
     """
-    y_slice = slice(max(0, py - aperture), min(cube.shape[1], py + aperture + 1))
-    x_slice = slice(max(0, px - aperture), min(cube.shape[2], px + aperture + 1))
-    return np.nanmax(cube[:, y_slice, x_slice], axis=(1, 2))
+    return cube[:, py, px]
