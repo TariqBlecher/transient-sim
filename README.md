@@ -1,10 +1,10 @@
 # Radio Transient Simulation Framework
 
-A modular framework for generating synthetic radio transients and injecting them into visibility data.
+A framework for generating synthetic radio transients and injecting them into visibility data. Imaging is done via pfb-imaging (https://github.com/ratt-ru/pfb-imaging). 
 
 ## Overview
 
-This framework generates realistic radio transients with configurable temporal profiles (gaussian, exponential, step) and spectral indices, then injects them into measurement sets using the `pfb hci` imaging tool. SNR-based flux scaling ensures transients fall within detectable ranges, making the simulations meaningful for detection algorithm validation.
+This framework generates radio transients with configurable temporal profiles (gaussian, exponential, step) and spectral indices, then injects them into measurement sets using the `pfb hci` imaging tool. SNR-based flux scaling ensures transients fall within detectable ranges, making the simulations meaningful for detection algorithm validation.
 
 ## Installation
 
@@ -22,6 +22,16 @@ Generate 50 transients with SNR scaling and HCI injection:
 # Creates: run1_transients.yaml, run1.ecsv, run1.zarr, run1.fits, run1.reg
 python transient_sim.py --ms /path/to/measurement.ms --nsources 50 -o run1
 ```
+## Output Formats
+
+| Format | Description |
+|--------|-------------|
+| YAML | Transient definitions (input to HCI) |
+| ECSV | Manifest with coordinates, fluxes, expected values |
+| DS9 .reg | Region file for visualization |
+| Zarr | Image cube from HCI injection |
+| FITS | Converted cube for distribution |
+
 
 ## Key Commands
 
@@ -69,16 +79,6 @@ python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ```bash
 python manifest_to_regions.py --manifest manifest.ecsv -o transients.reg
 ```
-
-## Output Formats
-
-| Format | Description |
-|--------|-------------|
-| YAML | Transient definitions (input to HCI) |
-| ECSV | Manifest with coordinates, fluxes, expected values |
-| DS9 .reg | Region file for visualization |
-| Zarr | Image cube from HCI injection |
-| FITS | Converted cube for distribution |
 
 ## Documentation
 
