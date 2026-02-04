@@ -30,7 +30,7 @@ def manifest_to_regions(manifest_path, output_path, radius=10.0):
 
     lines = [
         "# Region file format: DS9 version 4.0",
-        'global color=green width=1 font="helvetica 10 normal roman"',
+        'global color=green dashlist=8 3 width=1 font="helvetica 14 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=0 move=0 delete=1 include=1 source=1',
         "fk5",
     ]
 
