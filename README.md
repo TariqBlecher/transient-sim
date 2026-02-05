@@ -4,7 +4,7 @@ A framework for generating synthetic radio transients and injecting them into vi
 
 ## Overview
 
-This framework generates radio transients with configurable temporal profiles (gaussian, exponential, step) and spectral indices, then injects them into measurement sets using the `pfb hci` imaging tool. SNR-based flux scaling ensures transients fall within detectable ranges, making the simulations meaningful for detection algorithm validation.
+This framework generates radio transients with configurable temporal profiles (gaussian, exponential, step) and spectral indices, then injects them into measurement sets using the `pfb hci` imaging tool. SNR-based flux scaling ensures transients fall within detectable ranges, making the simulations meaningful for detection algorithm validation. Transient positions are sampled uniformly in area within a configurable radius from the field center (`--max-offset`, default 0.5 deg).
 
 ## Installation
 
@@ -40,6 +40,9 @@ python transient_sim.py --ms /path/to/measurement.ms --nsources 50 -o run1
 ```bash
 # Default workflow (SNR scaling + HCI injection + FITS conversion)
 python transient_sim.py --ms /path/to/ms --nsources 50 -o run1
+
+# Custom max offset from field center (default: 0.5 deg)
+python transient_sim.py --ms /path/to/ms --nsources 50 --max-offset 0.3 -o run1
 
 # Custom SNR range and RMS
 python transient_sim.py --ms /path/to/ms --nsources 50 \
@@ -79,6 +82,10 @@ python verify_transients.py --manifest run1.ecsv --cube run1.zarr
 ```bash
 python manifest_to_regions.py --manifest manifest.ecsv -o transients.reg
 ```
+
+## Examples
+
+- [`example_compare_tron_detections_to_injections.ipynb`](example_compare_tron_detections_to_injections.ipynb) — Compare detection pipeline (e.g. TRON) results against injected transients
 
 ## Documentation
 
