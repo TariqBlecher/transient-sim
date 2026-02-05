@@ -49,19 +49,18 @@ class TransientSimulator:
         cfg = self.config
         obs = self.obs
 
-        half_fov = cfg.fov_deg / 2.0
         duration_min = obs.integration_time_sec
         duration_max = min(cfg.duration_max_sec, obs.time_range_sec / 4)
         transients = []
 
         for i in range(nsources):
-            # Generate DEC first
-            dec = np.clip(
-                obs.dec_center_deg + rng.uniform(-half_fov, half_fov), -90.0, 90.0
-            )
-            # Scale RA range by 1/cos(DEC) to account for spherical coordinates
-            ra_half_fov = half_fov / np.cos(np.radians(dec))
-            ra = (obs.ra_center_deg + rng.uniform(-ra_half_fov, ra_half_fov)) % 360.0
+            # Circular sampling: uniform in area within max_offset_deg
+            r = cfg.max_offset_deg * np.sqrt(rng.uniform())
+            theta = rng.uniform(0, 2 * np.pi)
+            dec_offset = r * np.cos(theta)
+            dec = np.clip(obs.dec_center_deg + dec_offset, -90.0, 90.0)
+            ra_offset = r * np.sin(theta) / np.cos(np.radians(dec))
+            ra = (obs.ra_center_deg + ra_offset) % 360.0
             # Sample peak_time within science scans only (if scan info available)
             if obs.scans:
                 peak_time = obs.sample_science_time(rng)
@@ -127,6 +126,7 @@ class TransientSimulator:
             "ms_path": obs.ms_path,
             "time_range_sec": obs.time_range_sec,
             "fov_deg": cfg.fov_deg,
+            "max_offset_deg": cfg.max_offset_deg,
             "ra_center_deg": obs.ra_center_deg,
             "dec_center_deg": obs.dec_center_deg,
             "snr_range": list(cfg.snr_range),
@@ -181,6 +181,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--fov", type=float, default=2.0, help="Field of view (degrees)"
+    )
+    parser.add_argument(
+        "--max-offset",
+        type=float,
+        default=0.5,
+        help="Max angular distance from field center for transients (degrees, default: 0.5)",
     )
     parser.add_argument(
         "--duration-max", type=float, default=10.0, help="Max duration (seconds)"
@@ -258,6 +264,7 @@ if __name__ == "__main__":
         rms_jy=args.rms,
         duration_max_sec=args.duration_max,
         shapes=args.shapes,
+        max_offset_deg=args.max_offset,
     )
     extract_scans = not args.no_scan_aware
     sim = TransientSimulator.from_ms(args.ms, cfg, extract_scans=extract_scans)

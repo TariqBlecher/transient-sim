@@ -22,6 +22,7 @@ class TransientConfig:
     spectral_index_range: tuple = (-2.0, 0.0)
     periodic_fraction: float = 0.0
     period_range_sec: Optional[tuple] = None
+    max_offset_deg: float = 0.5  # Max angular distance from field center (degrees)
 
 
 @dataclass

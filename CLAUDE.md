@@ -70,6 +70,9 @@ The cube averages over frequency, so we compute the band-averaged flux correctio
 ### Time Bin Integration
 Each time bin is centered on the timestamp with width = integration time. Expected flux accounts for the temporal profile overlap with the bin.
 
+### Position Sampling (Primary Beam)
+Transient positions are sampled uniformly in area within a circle of `max_offset_deg` from the field center (default: 0.5 deg). This accounts for the primary beam sensitivity pattern — sources far from the pointing center are attenuated and less useful for training. Configurable via `--max-offset`.
+
 ### Flux Generation (SNR-based)
 Transient fluxes are generated directly from SNR parameters:
 ```
@@ -90,6 +93,9 @@ peak_flux = uniform(snr_min, snr_max) * rms
 # Creates: run1_transients.yaml, run1_transients.zarr (pfb lightcurves),
 #          run1.ecsv, run1.zarr, run1.fits, run1.reg
 python transient_sim.py --ms /path/to/ms --nsources 50 -o run1
+
+# Custom max offset from field center (default: 0.5 deg)
+python transient_sim.py --ms /path/to/ms --nsources 50 --max-offset 0.3 -o run1
 
 # Custom SNR range and RMS
 python transient_sim.py --ms /path/to/ms --nsources 50 \
